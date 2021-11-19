@@ -1,14 +1,9 @@
 import aiohttp
 import asyncio
 import sys
-from datetime import datetime
-import json
+from time import time 
 
-count = 10
-
-# import data file with info on how to fill out form
-with open("data.json") as data:
-    data = json.load(data)
+count = int(input("How many requests? "))
 
 
 async def screen(
@@ -48,45 +43,35 @@ async def screen(
     async with session.post(
         "https://healthscreening.schools.nyc/home/submit", data=data
     ) as resp:  # make request to doe endpoint to submit the form
-        return await resp.json()  # gather response json
+        return resp.status  # gather response json
 
 
 async def main():
     """
-    Main function, awaits the time to fill out form, and then fills out form.
+    Main function, spams form submits
     """
 
-    print("Auto covid-form bot ready to boot.")
-    print("Settings:")
-    print(json.dumps(data, indent=3))
-    input("Press [ENTER] to start")
-    print()
+    start = time()
 
     async with aiohttp.ClientSession() as session:  # create aiohttp session object for sending requests
-        while True:  # continue forever
-            if datetime.now().hour == data["sendHour"]:  # when it's the hour to send
-                screening = (  # fill out screening
-                    await screen(
-                        data["firstName"],
-                        data["lastName"],
-                        data["email"],
-                        data["stateCode"],
-                        data["schoolCode"],
+        screenings = await asyncio.gather(
+            *[
+                asyncio.ensure_future(
+                    screen(
+                        "firstName",
+                        "lastName",
+                        "example@example.com",
+                        "stateCode",
+                        "schoolCode",
                         session,
                     )
-                )["success"]
+                )
+                for i in range(count)
+            ]
+        )
+        print(screenings)
 
-                # break on fail; wait an hour on success
-                if screening:
-                    print("Successfully screened!","-",datetime.now())
-                    await asyncio.sleep(60 * 61)
-                else:
-                    print("Error screening.")
-                    break
-            else:
-                # don't overload cpu by running datetime.now() every microsecond; instead sleep every lapse
-                await asyncio.sleep(1)
-
+    print(round(time()-start,3),"seconds taken to send",count,"requests.")
 
 if sys.platform == "win32":
     # prevent "Event loop is closed" error on Windows
